@@ -1,5 +1,20 @@
+const WORD_LENGTH = 8;
+const WORD_BYTES_FOR_COMMAND = 5;
+
+const CMD = Object.freeze({
+    CLEAR: 0, // set all registers to 0
+	LOAD: 1, // load memory[current+1] to selected arg
+	ADD: 2, // rslt = arg_0 + arg_1
+	MOVE: 3, // memory[memory[current+1]] = rslt
+});
+
+const OPTIONS = Object.freeze({
+	ARG_0: 0b00000000,
+	ARG_1: 0b00100000,
+});
+
 function trim(num) {
-	return num & (2**16)
+	return num & ((2**WORD_LENGTH) - 1)
 }
 
 class Computer {
@@ -8,17 +23,72 @@ class Computer {
 	output;
 	input;
 	debug;
+
+	constructor(processor, memory) {
+		this.processor = processor;
+		this.memory = memory;
+	}
 }
 
 class Processor {
+	current = 0;
 
+	arg_0 = 0;
+	arg_1 = 0;
+	rslt = 0;
+
+	#commands = {
+		[CMD.CLEAR]: function (processor, memory, args) {
+			processor.arg_0 = 0;
+			processor.arg_1 = 0;
+			processor.rslt = 0;
+
+			processor.current++;
+		},
+		[CMD.LOAD]: function (processor, memory, args) {
+			let value = memory.read(processor.current + 1);
+			if (args === 0b000) {
+				processor.arg_0 = value;
+			} else if (args === 0b001) {
+				processor.arg_1 = value;
+			}
+			
+			processor.current += 2;
+		},
+		[CMD.ADD]: function (processor, memory, args) {
+			processor.rslt = processor.arg_0 + processor.arg_1;
+			processor.current++;
+		},
+		[CMD.MOVE]: function (processor, memory, args) {
+			let writeToAddress = memory.read(processor.current + 1);
+			memory.write(writeToAddress, processor.rslt);
+			if (writeToAddress === 0) {
+				console.info(processor.rslt);
+			}
+			processor.current += 2;
+		}
+	};
+
+	run(memory) {
+		this.#runCommand(
+			memory.read(this.current)
+		);
+	}
+
+	#runCommand(word) {
+		let command = word & 0b11111;
+		let args = word >>> WORD_BYTES_FOR_COMMAND;
+
+		this.#commands[command](this, memory, args);
+		console.log('command: ' + command);
+	}
 }
 
 class Memory {
 	#data;
 
 	constructor() {
-		this.#data = Array.apply(null, Array(2 ** 16)).map(() => 0);
+		this.#data = Array.apply(null, Array(2 ** WORD_LENGTH)).map(() => 0);
 	}
 
 	read(address) {
@@ -28,3 +98,35 @@ class Memory {
 		this.#data[trim(address)] = trim(value);
 	};
 }
+
+let memory = new Memory();
+
+let program = [
+	CMD.LOAD | OPTIONS.ARG_0,
+	15,
+	CMD.LOAD | OPTIONS.ARG_1,
+	1,
+	CMD.ADD,
+	CMD.MOVE,
+	0,
+	69,
+];
+
+for(let i = 0; i < program.length; i++) {
+	memory.write(i, program[i]);
+}
+
+memory.write(0, 1);
+console.debug(memory);
+
+let Machine = new Computer(new Processor(), memory);
+
+setInterval(function(){
+	console.debug({
+		"processor": Machine.processor,
+		"memory": Machine.memory,
+	});
+	Machine.processor.run(Machine.memory);
+}, 1000);
+
+
