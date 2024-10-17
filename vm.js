@@ -6,6 +6,7 @@ const CMD = Object.freeze({
 	LOAD: 1, // load memory[current+1] to selected arg
 	ADD: 2, // rslt = arg_0 + arg_1
 	MOVE: 3, // memory[memory[current+1]] = rslt
+	GOTO: 4, // current = memory[current+1]
 });
 
 const OPTIONS = Object.freeze({
@@ -31,7 +32,7 @@ class Computer {
 }
 
 class Processor {
-	current = 0;
+	current = 1;
 
 	arg_0 = 0;
 	arg_1 = 0;
@@ -62,10 +63,10 @@ class Processor {
 		[CMD.MOVE]: function (processor, memory, args) {
 			let writeToAddress = memory.read(processor.current + 1);
 			memory.write(writeToAddress, processor.rslt);
-			if (writeToAddress === 0) {
-				console.info(processor.rslt);
-			}
 			processor.current += 2;
+		},
+		[CMD.GOTO]: function (processor, memory, args) {
+			processor.current = memory.read(processor.current + 1);
 		}
 	};
 
@@ -80,7 +81,7 @@ class Processor {
 		let args = word >>> WORD_BYTES_FOR_COMMAND;
 
 		this.#commands[command](this, memory, args);
-		console.log('command: ' + command);
+		//console.log('command: ' + command);
 	}
 }
 
@@ -95,22 +96,39 @@ class Memory {
 		return this.#data[trim(address)];
 	};
 	write(address, value) {
+		if (address === 0) {
+			console.log(value);
+			return;
+		}
+
 		this.#data[trim(address)] = trim(value);
 	};
 }
-
+/////////////////////////////////////////////////////////////////////////////////
 let memory = new Memory();
 
 let program = [
+	0, // reserved
 	CMD.LOAD | OPTIONS.ARG_0,
-	15,
+	6, // 2
 	CMD.LOAD | OPTIONS.ARG_1,
-	1,
+	7,
 	CMD.ADD,
 	CMD.MOVE,
+	2,
+	CMD.MOVE,
 	0,
-	69,
+	CMD.GOTO,
+	1,
+	//////////////////////////
+	0, 
 ];
+/*
+var A = 6;
+while(true) {
+ 	print A = A + 7;
+}
+*/
 
 for(let i = 0; i < program.length; i++) {
 	memory.write(i, program[i]);
@@ -122,11 +140,11 @@ console.debug(memory);
 let Machine = new Computer(new Processor(), memory);
 
 setInterval(function(){
-	console.debug({
+	/*console.debug({
 		"processor": Machine.processor,
 		"memory": Machine.memory,
-	});
+	});*/
 	Machine.processor.run(Machine.memory);
-}, 1000);
+}, 500);
 
 
